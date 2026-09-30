@@ -7,7 +7,7 @@ from curl_cffi import requests as cffi_requests
 
 TELEGRAM_TOKEN = "7913644987:AAGf3SGA8ixaxw2rsjinQ0j-aZ7cGpOl7u8"
 CHAT_ID = "7361590854"
-SEARCH_URL = "https://www.vinted.pl/api/v2/catalog/items?page=1&per_page=10&price_to=40&search_text=nike&order=newest_first"
+SEARCH_URL = "https://www.vinted.pl/api/v2/catalog/items?search_text=nike&price_to=40&currency=PLN&order=newest_first&page=1&per_page=10"
 
 seen_ids = set()
 session = None
@@ -46,13 +46,17 @@ def create_fresh_session():
     s = cffi_requests.Session(impersonate="chrome120")
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8",
     }
     try:
-        s.get("https://www.vinted.pl", headers=headers, timeout=10)
+        resp = s.get("https://www.vinted.pl/catalog", headers=headers, timeout=15)
+        if resp.status_code == 200:
+            print("[+] Pobrano nowe ciasteczka sesji Vinted", flush=True)
+        else:
+            print(f"[!] Status inicjalizacji sesji: {resp.status_code}", flush=True)
     except Exception as e:
-        print(f"Błąd inicjalizacji sesji: {e}", flush=True)
+        print(f"[!] Błąd tworzenia sesji: {e}", flush=True)
     return s
 
 def check_vinted():
@@ -63,11 +67,16 @@ def check_vinted():
     headers = {
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8",
-        "Referer": "https://www.vinted.pl/",
+        "Referer": "https://www.vinted.pl/catalog",
         "X-Requested-With": "XMLHttpRequest"
     }
     
-    response = session.get(SEARCH_URL, headers=headers, timeout=10)
+    try:
+        response = session.get(SEARCH_URL, headers=headers, timeout=10)
+    except Exception as e:
+        print(f"Błąd połączenia: {e}", flush=True)
+        session = None
+        return
     
     if response.status_code == 200:
         data = response.json()
@@ -84,8 +93,8 @@ def check_vinted():
                 
                 print(f"[+] Nowa oferta: {title} - {price} zł", flush=True)
                 send_telegram_notification(title, price, item_url, photo_url)
-    elif response.status_code in (401, 403):
-        print(f"Błąd Vinted: Status {response.status_code} (Resetowanie sesji...)", flush=True)
+    elif response.status_code in (401, 403, 404):
+        print(f"Błąd Vinted: Status {response.status_code} -> Odnawiam sesję...", flush=True)
         session = create_fresh_session()
     else:
         print(f"Błąd Vinted: Status {response.status_code}", flush=True)
@@ -101,6 +110,7 @@ if __name__ == "__main__":
             print(f"Wyjątek: {e}", flush=True)
             session = None
         time.sleep(30)
+
 
 
 
