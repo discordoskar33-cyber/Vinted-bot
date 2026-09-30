@@ -12,8 +12,6 @@ SEARCH_URL = "https://www.vinted.pl/api/v2/catalog/items?search_text=nike&price_
 seen_ids = set()
 session = None
 
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -45,11 +43,14 @@ def send_telegram_notification(title, price, url, photo_url):
         print(f"Błąd Telegram: {e}", flush=True)
 
 def create_fresh_session():
-    s = cffi_requests.Session(impersonate="chrome120")
+    s = cffi_requests.Session(impersonate="chrome124")
     headers = {
-        "User-Agent": USER_AGENT,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8",
+        "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
         "Sec-Fetch-Dest": "document",
         "Sec-Fetch-Mode": "navigate",
         "Sec-Fetch-Site": "none",
@@ -58,24 +59,25 @@ def create_fresh_session():
     }
     try:
         resp = s.get("https://www.vinted.pl/", headers=headers, timeout=15)
-        if resp.status_code == 200:
-            print("[+] Pobrano nowe ciasteczka sesji Vinted", flush=True)
-        else:
-            print(f"[!] Status inicjalizacji sesji: {resp.status_code}", flush=True)
+        print(f"[+] Inicjalizacja sesji: Status {resp.status_code}, Ciasteczka: {len(s.cookies)}", flush=True)
     except Exception as e:
-        print(f"[!] Błąd tworzenia sesji: {e}", flush=True)
+        print(f"[!] Błąd inicjalizacji sesji: {e}", flush=True)
     return s
 
 def check_vinted():
     global session
     if session is None:
         session = create_fresh_session()
+        time.sleep(3)
         
     headers = {
-        "User-Agent": USER_AGENT,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8",
         "Referer": "https://www.vinted.pl/",
+        "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "same-origin",
@@ -85,7 +87,7 @@ def check_vinted():
     try:
         response = session.get(SEARCH_URL, headers=headers, timeout=10)
     except Exception as e:
-        print(f"Błąd połączenia: {e}", flush=True)
+        print(f"Błąd połączenia z API: {e}", flush=True)
         session = None
         return
     
@@ -105,11 +107,9 @@ def check_vinted():
                 
                 print(f"[+] Nowa oferta: {title} - {price} zł", flush=True)
                 send_telegram_notification(title, price, item_url, photo_url)
-    elif response.status_code in (401, 403, 404):
-        print(f"Błąd Vinted: Status {response.status_code} -> Odnawiam sesję...", flush=True)
-        session = create_fresh_session()
     else:
-        print(f"Błąd Vinted: Status {response.status_code}", flush=True)
+        print(f"Błąd Vinted: Status {response.status_code} -> Resetuję sesję...", flush=True)
+        session = create_fresh_session()
 
 if __name__ == "__main__":
     threading.Thread(target=start_http_server, daemon=True).start()
@@ -119,9 +119,10 @@ if __name__ == "__main__":
         try:
             check_vinted()
         except Exception as e:
-            print(f"Wyjątek: {e}", flush=True)
+            print(f"Wyjątek głównej pętli: {e}", flush=True)
             session = None
-        time.sleep(30)
+        time.sleep(25)
+
 
 
 
