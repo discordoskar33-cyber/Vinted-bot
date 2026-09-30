@@ -11,7 +11,6 @@ SEARCH_URL = "https://www.vinted.pl/api/v2/catalog/items?search_text=nike&price_
 
 seen_ids = set()
 session = None
-bearer_token = None
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -44,45 +43,41 @@ def send_telegram_notification(title, price, url, photo_url):
         print(f"Błąd Telegram: {e}", flush=True)
 
 def create_fresh_session():
-    global bearer_token
     s = cffi_requests.Session(impersonate="chrome124")
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8",
     }
     try:
-        resp = s.get("https://www.vinted.pl/", headers=headers, timeout=12)
-        bearer_token = s.cookies.get("access_token_web") or s.cookies.get("_vinted_fr_session")
-        print(f"[+] Nowa sesja! Status HTTP: {resp.status_code}, Token: {'OK' if bearer_token else 'Brak'}", flush=True)
+        # Step 1: Strona główna
+        s.get("https://www.vinted.pl/", headers=headers, timeout=12)
+        # Step 2: Inicjalizacja katalogu (generuje właściwe ciasteczka API)
+        s.get("https://www.vinted.pl/catalog", headers=headers, timeout=12)
+        print(f"[+] Nowa sesja gotowa! Zapisano ciasteczka: {len(s.cookies)}", flush=True)
     except Exception as e:
         print(f"[!] Błąd pobierania sesji: {e}", flush=True)
-        bearer_token = None
     return s
 
 def check_vinted():
-    global session, bearer_token
-    if session is None or not bearer_token:
+    global session
+    if session is None:
         session = create_fresh_session()
         time.sleep(2)
         
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8",
+        "Accept-Language": "pl-PL,pl;q=0.9",
         "Referer": "https://www.vinted.pl/catalog",
         "X-Requested-With": "XMLHttpRequest"
     }
-    
-    if bearer_token:
-        headers["Authorization"] = f"Bearer {bearer_token}"
     
     try:
         response = session.get(SEARCH_URL, headers=headers, timeout=10)
     except Exception as e:
         print(f"Błąd połączenia z API: {e}", flush=True)
         session = None
-        bearer_token = None
         return
     
     if response.status_code == 200:
@@ -102,9 +97,8 @@ def check_vinted():
                 print(f"[+] Nowa oferta: {title} - {price} zł", flush=True)
                 send_telegram_notification(title, price, item_url, photo_url)
     else:
-        print(f"Błąd Vinted: Status {response.status_code} -> Resetuję sesję...", flush=True)
+        print(f"Błąd Vinted: Status {response.status_code} -> Odnawiam sesję...", flush=True)
         session = None
-        bearer_token = None
 
 if __name__ == "__main__":
     threading.Thread(target=start_http_server, daemon=True).start()
@@ -115,6 +109,4 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Wyjątek pętli: {e}", flush=True)
             session = None
-            bearer_token = None
         time.sleep(30)
-
