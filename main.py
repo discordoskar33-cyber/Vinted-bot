@@ -116,7 +116,6 @@ if __name__ == "__main__":
             print(f"Wyjątek głównej pętli: {e}", flush=True)
             session = None
         time.sleep(25)
-)
 
 
 
