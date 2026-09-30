@@ -10,6 +10,7 @@ CHAT_ID = "7361590854"
 SEARCH_URL = "https://www.vinted.pl/api/v2/catalog/items?page=1&per_page=10&price_to=40&search_text=nike&order=newest_first"
 
 seen_ids = set()
+session = None
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -41,21 +42,32 @@ def send_telegram_notification(title, price, url, photo_url):
     except Exception as e:
         print(f"Błąd Telegram: {e}", flush=True)
 
-def check_vinted():
-    session = cffi_requests.Session(impersonate="chrome120")
+def create_fresh_session():
+    s = cffi_requests.Session(impersonate="chrome120")
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8",
+    }
+    try:
+        s.get("https://www.vinted.pl", headers=headers, timeout=10)
+    except Exception as e:
+        print(f"Błąd inicjalizacji sesji: {e}", flush=True)
+    return s
+
+def check_vinted():
+    global session
+    if session is None:
+        session = create_fresh_session()
+        
+    headers = {
         "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Referer": "https://www.vinted.pl/"
+        "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8",
+        "Referer": "https://www.vinted.pl/",
+        "X-Requested-With": "XMLHttpRequest"
     }
     
-    # Pobieramy ciasteczka z głównej strony
-    session.get("https://www.vinted.pl", headers=headers)
-    time.sleep(2)
-    
-    # Zapytanie o oferty
-    response = session.get(SEARCH_URL, headers=headers)
+    response = session.get(SEARCH_URL, headers=headers, timeout=10)
     
     if response.status_code == 200:
         data = response.json()
@@ -72,6 +84,9 @@ def check_vinted():
                 
                 print(f"[+] Nowa oferta: {title} - {price} zł", flush=True)
                 send_telegram_notification(title, price, item_url, photo_url)
+    elif response.status_code in (401, 403):
+        print(f"Błąd Vinted: Status {response.status_code} (Resetowanie sesji...)", flush=True)
+        session = create_fresh_session()
     else:
         print(f"Błąd Vinted: Status {response.status_code}", flush=True)
 
@@ -83,7 +98,9 @@ if __name__ == "__main__":
         try:
             check_vinted()
         except Exception as e:
-            print(f"Błąd: {e}", flush=True)
+            print(f"Wyjątek: {e}", flush=True)
+            session = None
         time.sleep(30)
+
 
 
