@@ -39,7 +39,7 @@ def send_telegram_notification(title, price, url, photo_url):
         "photo": photo_url if photo_url else "https://via.placeholder.com/300"
     }
     try:
-        requests.post(telegram_api, data=payload)
+        requests.post(telegram_api, data=payload, timeout=10)
     except Exception as e:
         print(f"Błąd Telegram: {e}", flush=True)
 
@@ -50,22 +50,13 @@ def create_fresh_session():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Upgrade-Insecure-Requests": "1"
     }
     try:
-        resp = s.get("https://www.vinted.pl/", headers=headers, timeout=15)
-        token = s.cookies.get("access_token_web")
-        if not token:
-            resp_cat = s.get("https://www.vinted.pl/catalog", headers=headers, timeout=15)
-            token = s.cookies.get("access_token_web")
-        
-        bearer_token = token
-        print(f"[+] Inicjalizacja sesji: Status {resp.status_code}, Token: {'Znaleziony' if bearer_token else 'Brak'}", flush=True)
+        resp = s.get("https://www.vinted.pl/", headers=headers, timeout=12)
+        bearer_token = s.cookies.get("access_token_web") or s.cookies.get("_vinted_fr_session")
+        print(f"[+] Nowa sesja! Status HTTP: {resp.status_code}, Token: {'OK' if bearer_token else 'Brak'}", flush=True)
     except Exception as e:
-        print(f"[!] Błąd inicjalizacji sesji: {e}", flush=True)
+        print(f"[!] Błąd pobierania sesji: {e}", flush=True)
         bearer_token = None
     return s
 
@@ -111,7 +102,7 @@ def check_vinted():
                 print(f"[+] Nowa oferta: {title} - {price} zł", flush=True)
                 send_telegram_notification(title, price, item_url, photo_url)
     else:
-        print(f"Błąd Vinted: Status {response.status_code} -> Odnawiam sesję...", flush=True)
+        print(f"Błąd Vinted: Status {response.status_code} -> Resetuję sesję...", flush=True)
         session = None
         bearer_token = None
 
@@ -122,7 +113,8 @@ if __name__ == "__main__":
         try:
             check_vinted()
         except Exception as e:
-            print(f"Wyjątek głównej pętli: {e}", flush=True)
+            print(f"Wyjątek pętli: {e}", flush=True)
             session = None
             bearer_token = None
-        time.sleep(25)
+        time.sleep(30)
+
