@@ -12,6 +12,8 @@ SEARCH_URL = "https://www.vinted.pl/api/v2/catalog/items?search_text=nike&price_
 seen_ids = set()
 session = None
 
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -45,12 +47,17 @@ def send_telegram_notification(title, price, url, photo_url):
 def create_fresh_session():
     s = cffi_requests.Session(impersonate="chrome120")
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": USER_AGENT,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1"
     }
     try:
-        resp = s.get("https://www.vinted.pl/catalog", headers=headers, timeout=15)
+        resp = s.get("https://www.vinted.pl/", headers=headers, timeout=15)
         if resp.status_code == 200:
             print("[+] Pobrano nowe ciasteczka sesji Vinted", flush=True)
         else:
@@ -65,9 +72,13 @@ def check_vinted():
         session = create_fresh_session()
         
     headers = {
+        "User-Agent": USER_AGENT,
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8",
-        "Referer": "https://www.vinted.pl/catalog",
+        "Referer": "https://www.vinted.pl/",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
         "X-Requested-With": "XMLHttpRequest"
     }
     
@@ -81,6 +92,7 @@ def check_vinted():
     if response.status_code == 200:
         data = response.json()
         items = data.get("items", [])
+        print(f"[+] Pobrano {len(items)} ofert z Vinted", flush=True)
         for item in reversed(items):
             item_id = item["id"]
             if item_id not in seen_ids:
@@ -110,6 +122,7 @@ if __name__ == "__main__":
             print(f"Wyjątek: {e}", flush=True)
             session = None
         time.sleep(30)
+
 
 
 
