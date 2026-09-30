@@ -5,13 +5,12 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests
 from curl_cffi import requests as cffi_requests
 
-TELEGRAM_TOKEN = "7913644987:AAGf3SGA8ixaxw2rsjinQ0j-aZ7cGp0l7u8"
+TELEGRAM_TOKEN = "7913644987:AAGf3SGA8ixaxw2rsjinQ0j-aZ7cGpOl7u8"
 CHAT_ID = "7361590854"
 SEARCH_URL = "https://www.vinted.pl/api/v2/catalog/items?page=1&per_page=10&price_to=40&search_text=nike&order=newest_first"
 
 seen_ids = set()
 
-# Mini-serwer, żeby Render traktował skrypt jako darmowy Web Service (bez karty)
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -40,7 +39,7 @@ def send_telegram_notification(title, price, url, photo_url):
     try:
         requests.post(telegram_api, data=payload)
     except Exception as e:
-        print(f"Błąd Telegram: {e}")
+        print(f"Błąd Telegram: {e}", flush=True)
 
 def check_vinted():
     session = cffi_requests.Session(impersonate="chrome120")
@@ -60,18 +59,19 @@ def check_vinted():
                 photos = item.get("photos", [])
                 photo_url = photos[0].get("url") if photos else None
                 
-                print(f"[+] Nowa oferta: {title} - {price} zł")
+                print(f"[+] Nowa oferta: {title} - {price} zł", flush=True)
                 send_telegram_notification(title, price, item_url, photo_url)
     else:
-        print(f"Błąd Vinted: Status {response.status_code}")
+        print(f"Błąd Vinted: Status {response.status_code}", flush=True)
 
 if __name__ == "__main__":
     threading.Thread(target=start_http_server, daemon=True).start()
     
-    print("Bot uruchomiony! Szukam okazji...")
+    print("Bot uruchomiony! Szukam okazji...", flush=True)
     while True:
         try:
             check_vinted()
         except Exception as e:
-            print(f"Błąd: {e}")
+            print(f"Błąd: {e}", flush=True)
         time.sleep(20)
+
