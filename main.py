@@ -43,8 +43,19 @@ def send_telegram_notification(title, price, url, photo_url):
 
 def check_vinted():
     session = cffi_requests.Session(impersonate="chrome120")
-    session.get("https://www.vinted.pl")
-    response = session.get(SEARCH_URL)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://www.vinted.pl/"
+    }
+    
+    # Pobieramy ciasteczka z głównej strony
+    session.get("https://www.vinted.pl", headers=headers)
+    time.sleep(2)
+    
+    # Zapytanie o oferty
+    response = session.get(SEARCH_URL, headers=headers)
     
     if response.status_code == 200:
         data = response.json()
@@ -73,5 +84,6 @@ if __name__ == "__main__":
             check_vinted()
         except Exception as e:
             print(f"Błąd: {e}", flush=True)
-        time.sleep(20)
+        time.sleep(30)
+
 
