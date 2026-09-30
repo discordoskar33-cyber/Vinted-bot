@@ -1,13 +1,27 @@
+import os
 import time
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests
 from curl_cffi import requests as cffi_requests
 
 TELEGRAM_TOKEN = "7913644987:AAGf3SGA8ixaxw2rsjinQ0j-aZ7cGp0l7u8"
 CHAT_ID = "7361590854"
-
 SEARCH_URL = "https://www.vinted.pl/api/v2/catalog/items?page=1&per_page=10&price_to=40&search_text=nike&order=newest_first"
 
 seen_ids = set()
+
+# Mini-serwer, żeby Render traktował skrypt jako darmowy Web Service (bez karty)
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot Vinted dziala!")
+
+def start_http_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server.serve_forever()
 
 def send_telegram_notification(title, price, url, photo_url):
     msg = (
@@ -49,12 +63,15 @@ def check_vinted():
                 print(f"[+] Nowa oferta: {title} - {price} zł")
                 send_telegram_notification(title, price, item_url, photo_url)
     else:
-        print(f"Błąd pobierania danych z Vinted: Status {response.status_code}")
+        print(f"Błąd Vinted: Status {response.status_code}")
 
-print("Bot uruchomiony! Szukam okazji...")
-while True:
-    try:
-        check_vinted()
-    except Exception as e:
-        print(f"Błąd: {e}")
-    time.sleep(20)
+if __name__ == "__main__":
+    threading.Thread(target=start_http_server, daemon=True).start()
+    
+    print("Bot uruchomiony! Szukam okazji...")
+    while True:
+        try:
+            check_vinted()
+        except Exception as e:
+            print(f"Błąd: {e}")
+        time.sleep(20)
